@@ -1668,15 +1668,20 @@ class Parser {
 }
 
 
-function printPtList(list_pt) {
+function info_PtList(list_pt) {
     var info_pt='';
     for(var i=0;i<list_pt.length;i++) {
         var pt=list_pt[i];
         info_pt+=pt.info()+','
     }
 
-    print(`[${info_pt}]`);
+    return `[${info_pt}]`;
 }
+
+function printPtList(list_pt) {
+    print(info_PtList(list_pt));
+}
+
 
 function mergeArrays(list0,list1) {
     for(var j=0;j<list1.length;j++) {
