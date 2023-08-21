@@ -1133,7 +1133,7 @@ function writeStdCode_karma(karma,list_pt) {
 }
 
 /*
-
+do
 保存NetPStack:...
 */
 
@@ -1142,6 +1142,31 @@ class NetPStack {
     constructor() {
         this.m_builtStack=[{}];
         this.m_undefinedStack=[{}];
+    }
+
+    info() {
+        var info='',info_stack='';
+        
+        info+='Built: ';
+        for(var i in this.m_builtStack) {
+            info_stack=''
+            for(var key in this.m_builtStack[i]) {
+                info_stack+=`${key}:${this.m_builtStack[i][key].info()},`;
+            }
+            info+=`{${info_stack}},`;
+        }
+        
+        info+='<br>Undefined: ';
+        for(var i in this.m_undefinedStack) {
+            info_stack=''
+            for(var key in this.m_undefinedStack[i]) {
+                info_stack+=`${key}:${this.m_undefinedStack[i][key].info()},`;
+            }
+            info+=`{${info_stack}},`;
+        }
+        info+=`<br>`;
+        return info;
+    
     }
 
     popBuilt() {
@@ -1166,7 +1191,7 @@ class NetPStack {
         Object.assign(copy0,this.m_builtStack[this.m_builtStack.length-1]);
         this.m_builtStack.push(copy0);
 
-        Object.assign(this.m_undefinedStack[this.m_undefinedStack.length-1],copy1);
+        Object.assign(copy1,this.m_undefinedStack[this.m_undefinedStack.length-1]);
         this.m_undefinedStack.push(copy1);
     }
 
@@ -1255,28 +1280,26 @@ class NetPStack {
         else {
             return;
         }
-        // if(km0.isType('新建') | km0.m_symbol.m_name=='[那]') {
-        if(km0.m_symbol.m_name=='[那]') {
-            insertPtIntotKarma_back(km0,netP);
+
+        if(km0.isType('新建') | km0.m_symbol.m_name=='[那]') {
+            this.insertPtIntotKarma_back(km0,netP);
         }
         
-        // else if(km0.isType('普通非新建') | km0.m_symbol.m_name=='[is]') {
-        else if(km0.m_symbol.m_name=='[is]') {
+        else if(km0.isType('普通非新建') | km0.m_symbol.m_name=='[is]') {
             if(otherP=='' | otherP.m_master=='') {
                 this.insertPtIntotKarma_back(km0,netP);
             }
             
-            // else if(otherP.m_master in km0.allCauses()) {
-            //     this.insertPtIntotKarma_back(km0,netP);
-            //}
+            else if(km0.allCauses().includes(otherP.m_master)) {
+                this.insertPtIntotKarma_back(km0,netP);
+            }
             
             else {
                 this.insertPtIntotKarma_front(km0,netP);
             }
         }
-        
-        //else if(km0.isType('引用')) {
-        else {
+        else if(km0.isType('引用')) {
+        //else {
             this.insertPtIntotKarma_front(km0,netP);
         }
     }
@@ -1295,7 +1318,7 @@ class NetPStack {
                     pt=dict_undef[term];
                     if(pt.m_master=='') {
                         km_head=pt.m_con[0].m_master;
-                        // this.insertPtIntotKarma(km_head,pt);
+                        this.insertPtIntotKarma(km_head,pt);
                     }
                 }
             }
@@ -1309,17 +1332,16 @@ class NetPStack {
             dict_len2=Object.keys(dict_undef2).length;
 
             if(dict_len>dict_len2) {
-            
-            for(var term in dict_undef) {
-                if(dict_undef2[term]==undefined) {
-                    pt=dict_undef[term];
-                    if(pt.m_master=='') {
-                        km_head=pt.m_con[0].m_master;
-                        this.insertPtIntotKarma(km_head,pt);
+                for(var term in dict_undef) {
+                    if(dict_undef2[term]==undefined) {
+                        pt=dict_undef[term];
+                        if(pt.m_master=='') {
+                            km_head=pt.m_con[0].m_master;
+                            this.insertPtIntotKarma(km_head,pt);
+                        }
                     }
                 }
             }
-        }
         }
 
         this.m_builtStack.pop();
@@ -1378,6 +1400,93 @@ class NetPStack {
 
 
 class Parser {
+
+    readSubCode_tokener(code) {
+        var list_karma=[];
+        var karma,pointStack;
+        var result=true;
+        
+        while(code!='') {
+            code=code.replace(/^[ \t\n]+/,'');
+            if(code=='') {
+                break;
+            }
+
+            [code,result]=this.removeComment(code);
+            if(result==true) {
+                continue;
+            }
+            
+            else {
+                [code,karma,pointStack]=this.chainToken(code);
+                pointStack.leaveClause();
+                karma=karma.causeEnd();
+                karma.setRangers();
+                list_karma.push(karma);
+                if(code!='' & code[0]==';') {
+                    code=code.slice(1,code.length);
+                }
+            }
+        }
+        return list_karma;
+    }
+
+/*
+buildNetP
+*/
+
+    buildPoints_tokener(code) {
+        code=code.replace(/^[ \t\n\r]*/,'');
+
+        var list_pt=[],netP;
+        var pointStack=new NetPStack();
+
+        while(code!='') {
+            [code,netP,pointStack]=this.netPToken(code,pointStack);
+            list_pt.push(netP);
+            code=code.replace(/^\[-?\d+,-?\d+\]/,'');
+            code=code.replace(/^[ \t\n\r;]*/,'');
+
+        }
+        return list_pt;
+    }
+
+
+    removeComment(code) {
+        if(code.length==0) {
+            return [code,false];
+        }
+        
+        else if(code[0]=='#') {
+            code=code.replace(/^#.*/,'');
+        }
+        
+        else if(code.slice(0,3)=='"""') {
+            code=code.slice(3,code.length);
+            
+            while(true) {
+                if(code.length<3) {
+                    code='';
+                    break;
+                }
+                
+                else if(code.slice(0,3)=='"""') {
+                    break;
+                }
+                
+                else {
+                    code=code.replace(/^.*\n?/,'');
+                }
+            }
+            code=code.slice(3,code.length);
+        }
+        
+        else {
+            return [code,false];
+        }
+        return [code,true];
+    }
+
 
     chainToken(code,pointStack='') {
         var karma;
@@ -1488,10 +1597,14 @@ class Parser {
                 }
             }
         }
+//print(pointStack.info());
         pointStack.leaveClause();
         return [code,karma,pointStack];
     }
 
+/*
+leaveClause
+*/
 
     splitToken(code,karma,pointStack) {
         var typeCon,effect;
@@ -1678,8 +1791,23 @@ function info_PtList(list_pt) {
     return `[${info_pt}]`;
 }
 
+
+function info_PtPool(pool_pt) {
+    var info_pt='';
+    for(var key in pool_pt) {
+        var list_pt=pool_pt[key];
+        info_pt+=key+`: ${info_PtList(list_pt)},`;
+    }
+
+    return `{${info_pt}}`;
+}
+
 function printPtList(list_pt) {
     print(info_PtList(list_pt));
+}
+
+function printPtPool(pool_pt) {
+    print(info_PtPool(pool_pt));
 }
 
 
@@ -1691,11 +1819,16 @@ function mergeArrays(list0,list1) {
     }
 }
 
-function run_code_line(code0,list_pt) {
-    var code,list_km,list_new;
-    var parser=new Parser();
+/*
++[J函数](,JS版本)
 
-    [code,km]=parser.chainToken(code0);
+保存run_code:...
+*/
+
+function run_code_line(km,list_pt) {
+    var code,list_km,list_new;
+
+    //[code,km]=parser.chainToken(code0);
     list_km=km.allEffects();
     
     list_km[0].m_stage=1;
@@ -1722,63 +1855,12 @@ function run_code_line(code0,list_pt) {
 
 function run_code(code0,list_pt) {
     var code1=code0;
-    while(true) {
-        code0=code0.replace(/^;?[ \t\n]*/,'');
-        if(code0=='') {
-            break;
-        }
-        code0=run_code_line(code0,list_pt);
-        if(code0==code1) {
-            break;
-        }
-        else {
-            code1=code0;
-        }
+    var parser=new Parser();
+    list_km=parser.readSubCode_tokener(code0);
+
+    for(var i in list_km) {
+        run_code_line(list_km[i],list_pt);
     }
+
     return code0;
-}
-
-function operation(list_pt) {
-    var list_del=[];
-    for(var i=0;i<list_pt.length;i++) {
-//    for(var i=list_pt.length-1;i>=0;i--) {
-        var pt=list_pt[i];
-        var operated=false;
-        if(pt.m_name=='[del]') {
-            opDel(pt);
-            operated=true;
-        }
-        else if(pt.m_name=='[消息窗口]') {
-            opMsgWin(pt);
-            operated=true;
-        }
-        else if(pt.m_name.length>1 & pt.m_name[0]=='[' & pt.m_name[pt.m_name.length-1]==']') {
-            operated=true;
-        }
-        if(operated) {
-            list_del.push(i);
-        }
-    }
-    for(var i=list_del.length;i>0;i--) {
-        var i_del=list_del[i-1];
-        var pt_del=list_pt[i_del];
-        list_pt.splice(i_del,1);
-        pt_del.delete();
-        delete pt_del;
-    }
-}
-
-function opMsgWin(action) {
-    alert(action.m_text);
-}
-
-
-function opDel(action) {
-/*    if(action.m_db[1]=='') {
-        return;
-    }
-    var pt_del=action.m_db[1];
-    pt_del.delete()
-    delete pt_del;
-*/
 }
